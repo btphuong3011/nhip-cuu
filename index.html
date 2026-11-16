@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Kịp Nhịp – nguyên mẫu mạng lưới sinh viên ép tim cộng đồng (dữ liệu giả lập)">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Kịp Nhịp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: phone-frame app on the left (what the bystander / volunteer sees), dispatch board on the right (map, log, drill metrics); stacks to one column on phones */
+:root {
+  --bg: #f5f3f2;
+  --surface: #ffffff;
+  --surface-2: #efebea;
+  --fg: #1c1819;
+  --muted: #675f61;
+  --line: #ded7d6;
+  --alarm: #c8102e;
+  --alarm-ink: #ffffff;
+  --alarm-soft: #fbe3e7;
+  --go: #0b7a68;
+  --go-soft: #d9f0eb;
+  --aed: #b86e00;
+  --aed-soft: #fdefd5;
+  --off: #a39a9c;
+  --grid-fine: #f4d3d8;
+  --grid-bold: #eaa9b3;
+  --phone-edge: #231e20;
+  --map-ground: #f1eeed;
+  --map-block: #ddd6d5;
+  --map-road: #ffffff;
+  --map-green: #d6ead2;
+  --font-display: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --beat: 0.5455s; /* 60 / 110 nhịp mỗi phút */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151213; --surface: #1f1b1c; --surface-2: #2a2526; --fg: #f3eeee; --muted: #b3a9ab; --line: #3a3334;
+    --alarm: #ff4d63; --alarm-ink: #1a0005; --alarm-soft: #3d1a20;
+    --go: #3fd0b4; --go-soft: #123a33; --aed: #f2a93b; --aed-soft: #3a2a10; --off: #6f6668;
+    --grid-fine: #3a2328; --grid-bold: #5a2e36; --phone-edge: #000000;
+    --map-ground: #1b1718; --map-block: #322c2d; --map-road: #262122; --map-green: #1e2e1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151213; --surface: #1f1b1c; --surface-2: #2a2526; --fg: #f3eeee; --muted: #b3a9ab; --line: #3a3334;
+  --alarm: #ff4d63; --alarm-ink: #1a0005; --alarm-soft: #3d1a20;
+  --go: #3fd0b4; --go-soft: #123a33; --aed: #f2a93b; --aed-soft: #3a2a10; --off: #6f6668;
+  --grid-fine: #3a2328; --grid-bold: #5a2e36; --phone-edge: #000000;
+  --map-ground: #1b1718; --map-block: #322c2d; --map-road: #262122; --map-green: #1e2e1f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--go); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.wrap {
+  max-width: 1260px; margin: 0 auto;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px;
+}
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand svg { flex: none; }
+.brand h1 { font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1.1; margin: 0; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 7px 14px; font-size: 13.5px; font-weight: 500; display: inline-flex; gap: 6px; align-items: center;
+}
+.chip-btn[aria-pressed="false"] { color: var(--muted); }
+.chip-btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+.chip-btn:disabled { opacity: .5; cursor: default; }
+select.chip-btn { appearance: auto; }
+
+.layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Phone */
+.phone-col { display: grid; gap: 10px; justify-items: center; }
+.role-tabs { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 4px; gap: 4px; }
+.role-tabs button { border: 0; background: transparent; border-radius: 999px; padding: 7px 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.role-tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.phone {
+  width: 100%; max-width: 380px; height: 740px;
+  border: 10px solid var(--phone-edge); border-radius: 40px; background: var(--surface);
+  overflow: hidden; display: flex; flex-direction: column; position: relative;
+}
+@media (max-width: 920px) { .phone { height: auto; min-height: 640px; } }
+@media (max-width: 440px) { .phone { border-width: 1px; border-color: var(--line); border-radius: 22px; } }
+.statusbar { display: flex; justify-content: space-between; padding: 10px 20px 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.scr { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px 18px 18px; overflow-y: auto; min-height: 0; }
+.eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0; }
+.scr h2 { font-family: var(--font-display); font-size: 22px; line-height: 1.2; margin: 0; text-wrap: balance; }
+.scr p { margin: 0; }
+.hint { color: var(--muted); font-size: 14px; }
+
+.sos {
+  align-self: center; width: 210px; height: 210px; border-radius: 50%; border: 0;
+  background: var(--alarm); color: var(--alarm-ink);
+  font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1.15;
+  box-shadow: 0 0 0 12px var(--alarm-soft), 0 10px 24px rgba(200,16,46,.28);
+  margin: 18px 0 10px;
+}
+.sos:active { transform: scale(.97); }
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.kv b { font-size: 18px; }
+
+.q { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+.q p { font-weight: 600; }
+.q .opts { display: flex; gap: 8px; }
+.q .opts button { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 8px; font-weight: 600; font-size: 14px; }
+.q .opts button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn-big { border: 0; border-radius: 14px; padding: 15px 16px; font-weight: 700; font-size: 16px; font-family: var(--font-display); }
+.btn-alarm { background: var(--alarm); color: var(--alarm-ink); }
+.btn-go { background: var(--go); color: var(--bg); }
+.btn-ghost { background: var(--surface-2); color: var(--fg); }
+.btn-big:disabled { opacity: .45; cursor: default; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--muted); text-decoration: underline; font-size: 13.5px; text-align: left; }
+
+.call-card { display: grid; gap: 6px; justify-items: center; text-align: center; padding: 18px 12px; border-radius: 18px; background: var(--alarm-soft); }
+.call-card .num { font-family: var(--font-mono); font-weight: 700; font-size: 44px; color: var(--alarm); line-height: 1; }
+
+/* CPR coach on ECG paper */
+.coach { background-color: var(--surface);
+  background-image:
+    linear-gradient(var(--grid-bold) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-bold) 1px, transparent 1px),
+    linear-gradient(var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 8px 8px, 8px 8px; }
+.coach-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: var(--surface); border: 1px solid var(--line); }
+.pill.alarm { background: var(--alarm); color: var(--alarm-ink); border-color: var(--alarm); }
+.press-wrap { display: grid; justify-items: center; gap: 6px; padding: 6px 0; }
+.press {
+  width: 180px; height: 180px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--alarm); color: var(--alarm-ink); font-family: var(--font-display); font-weight: 800; font-size: 34px; letter-spacing: .04em;
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--alarm) 18%, transparent);
+}
+.press.running { animation: press var(--beat) ease-out infinite; }
+@keyframes press { 0% { transform: scale(1); } 18% { transform: scale(.86); } 100% { transform: scale(1); } }
+.press-meta { display: flex; gap: 16px; font-size: 13.5px; color: var(--muted); }
+.press-meta b { color: var(--fg); }
+.caption { background: var(--fg); color: var(--bg); border-radius: 14px; padding: 12px 14px; font-weight: 600; font-size: 15px; min-height: 68px; }
+.cards { display: grid; gap: 8px; }
+.vcard { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
+.vcard .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--go); }
+.vcard.aed .dot { background: var(--aed); border-radius: 3px; }
+.vcard.arrived { border-color: var(--go); background: var(--go-soft); }
+.vcard .who { font-weight: 600; }
+.vcard .sub { color: var(--muted); font-size: 12.5px; }
+.vcard .eta { font-family: var(--font-mono); font-weight: 700; font-size: 15px; text-align: right; }
+.banner { padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+.banner.go { background: var(--go-soft); color: var(--fg); border: 1px solid var(--go); }
+.banner.aed { background: var(--aed-soft); color: var(--fg); border: 1px solid var(--aed); }
+
+/* Volunteer screens */
+.profile { display: grid; gap: 4px; padding: 14px; border-radius: 16px; background: var(--surface-2); }
+.profile .name { font-family: var(--font-display); font-weight: 700; font-size: 20px; }
+.toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); }
+.switch { width: 50px; height: 30px; border-radius: 999px; border: 0; background: var(--off); position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .15s; }
+.switch[aria-checked="true"] { background: var(--go); }
+.switch[aria-checked="true"]::after { left: 23px; }
+.alert-card { display: grid; gap: 8px; padding: 16px; border-radius: 18px; background: var(--alarm); color: var(--alarm-ink); }
+.alert-card .big { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1.1; }
+.alert-card .mono { font-size: 15px; }
+.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-size: 14px; }
+.steps li::before { counter-increment: s; content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+
+/* Board */
+.board { display: grid; gap: 16px; min-width: 0; }
+.board-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.board-head h2 { font-family: var(--font-display); font-size: 18px; margin: 0; }
+.clock { font-family: var(--font-mono); font-weight: 700; font-size: 22px; padding: 4px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.map-box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 10px; overflow-x: auto; }
+.map-box svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); padding: 8px 4px 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lg { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.lower { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; min-width: 0; }
+.panel h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; font-size: 13.5px; }
+.log li { display: grid; grid-template-columns: 58px 1fr; gap: 8px; }
+.log .t { font-family: var(--font-mono); color: var(--muted); font-size: 12.5px; padding-top: 1px; }
+.log li.alarm .m { color: var(--alarm); font-weight: 600; }
+.log li.go .m { color: var(--go); font-weight: 600; }
+.log li.aed .m { color: var(--aed); font-weight: 600; }
+.metrics { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.metrics th, .metrics td { text-align: left; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+.metrics th { font-weight: 600; color: var(--muted); font-size: 12px; }
+.metrics td.v { font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.tag.ok { background: var(--go-soft); color: var(--go); }
+.tag.miss { background: var(--alarm-soft); color: var(--alarm); }
+.tag.wait { background: var(--surface-2); color: var(--muted); }
+.panel-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.note { font-size: 12.5px; color: var(--muted); }
+footer.note { border-top: 1px solid var(--line); padding-top: 12px; }
+
+/* map dynamic */
+.victim-ring { fill: none; stroke: var(--alarm); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: ring 1.6s ease-out infinite; }
+@keyframes ring { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
+.notified-ring { fill: none; stroke: var(--aed); stroke-width: 2.5; transform-box: fill-box; transform-origin: center; animation: ring 1.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .press.running, .victim-ring, .notified-ring { animation: none; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+        <rect width="44" height="44" rx="12" style="fill:var(--alarm)"></rect>
+        <path d="M6 24h8l3-7 5 15 4-12 2 4h10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--alarm-ink)"></path>
+      </svg>
+      <div>
+        <h1>Kịp Nhịp</h1>
+        <p>Nguyên mẫu mạng lưới sinh viên ép tim cộng đồng. Bản đồ và dữ liệu đều là giả lập.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="chip-btn primary" id="btn-auto" type="button">Chạy kịch bản mẫu</button>
+      <label class="note" for="sel-speed">Tốc độ</label>
+      <select class="chip-btn" id="sel-speed">
+        <option value="1">×1 (thời gian thật)</option>
+        <option value="2">×2</option>
+        <option value="4">×4</option>
+      </select>
+      <button class="chip-btn" id="btn-sound" type="button" aria-pressed="true">Tiếng bíp</button>
+      <button class="chip-btn" id="btn-voice" type="button" aria-pressed="true">Giọng đọc</button>
+      <button class="chip-btn" id="btn-reset" type="button">Làm lại</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="phone-col" aria-label="Màn hình ứng dụng">
+      <div class="role-tabs" role="tablist" aria-label="Vai trò">
+        <button type="button" role="tab" id="tab-bystander" aria-selected="true">Người chứng kiến</button>
+        <button type="button" role="tab" id="tab-volunteer" aria-selected="false">Tình nguyện viên</button>
+      </div>
+      <div class="phone" id="phone">
+        <div class="statusbar"><span id="sb-clock" class="mono">21:47</span><span>Kịp Nhịp</span></div>
+        <div id="screen" class="scr"></div>
+      </div>
+    </section>
+
+    <section class="board" aria-label="Bảng điều phối">
+      <div class="board-head">
+        <h2>Bảng điều phối · khu ký túc xá (sơ đồ minh họa)</h2>
+        <span class="clock" id="clock" title="Thời gian kể từ lúc bấm báo động">T+00:00</span>
+      </div>
+      <div class="map-box">
+        <svg id="map" viewBox="0 0 900 600" role="img" aria-label="Sơ đồ khu ký túc xá với vị trí người gặp nạn, tình nguyện viên và máy AED">
+          <g id="map-base"></g>
+          <g id="map-rings"></g>
+          <g id="map-dyn"></g>
+        </svg>
+        <div class="legend">
+          <span><i class="lg" style="background:var(--alarm)"></i>Người ngừng tim</span>
+          <span><i class="lg" style="background:var(--go)"></i>Tình nguyện viên sẵn sàng</span>
+          <span><i class="lg" style="background:var(--aed)"></i>Đã báo động / máy AED</span>
+          <span><i class="lg" style="background:var(--off)"></i>Không trực</span>
+          <span>Vòng nét đứt: bán kính báo động 500 m</span>
+        </div>
+      </div>
+      <div class="lower">
+        <div class="panel">
+          <h3>Nhật ký sự kiện</h3>
+          <ol class="log" id="log"></ol>
+        </div>
+        <div class="panel">
+          <h3>Chỉ số diễn tập</h3>
+          <table class="metrics">
+            <thead><tr><th scope="col">Mốc (tính từ lúc bấm báo động)</th><th scope="col">Thời gian</th><th scope="col">Mục tiêu</th></tr></thead>
+            <tbody id="metrics"></tbody>
+          </table>
+          <div class="panel-foot">
+            <button class="chip-btn" id="btn-copy" type="button">Sao chép kết quả</button>
+            <span id="copy-msg" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      <footer class="note">Nguyên mẫu phục vụ Cuộc thi “1.000 ý tưởng chăm sóc sức khỏe Việt” 2026. Không dùng cho cấp cứu thật; khi có người ngừng tim, hãy gọi 115. Nội dung hướng dẫn ép tim theo khuyến cáo hồi sinh tim phổi cho người dân của AHA 2020 và ERC 2021.</footer>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Thông số mô phỏng ----------
+  const BPM = 110;                 // nhịp ép tim hướng dẫn (khuyến cáo 100–120 lần/phút)
+  const RADIUS = 500;              // bán kính gửi báo động (m)
+  const MOVE_SPEED = 2.0;          // tốc độ di chuyển hiệu dụng của TNV (m/s), đã tính cầu thang, khúc quanh
+  const AED_PICKUP = 15;           // thời gian lấy máy AED khỏi tủ (s)
+  const N_SCENE = 3;               // số TNV được báo đến thẳng hiện trường
+  const VICTIM = { x: 606, y: 246, label: 'Sảnh nhà B3' };
+  const AEDS = [
+    { id: 'aed1', x: 425, y: 368, label: 'Trạm y tế' },
+    { id: 'aed2', x: 600, y: 398, label: 'Nhà thi đấu' },
+    { id: 'aed3', x: 430, y: 188, label: 'Căn tin' }
+  ];
+  // Tình nguyện viên giả lập: delay = số giây từ lúc nhận báo động đến lúc phản hồi; accept = có nhận ca không
+  const VOL_SEED = [
+    { id: 'v1', name: 'Minh Anh',  x: 700, y: 318, ready: true,  delay: 7,  accept: true,  me: true },
+    { id: 'v2', name: 'Quốc Bảo',  x: 520, y: 140, ready: true,  delay: 9,  accept: false },
+    { id: 'v3', name: 'Thu Hà',    x: 800, y: 250, ready: true,  delay: 11, accept: true },
+    { id: 'v4', name: 'Gia Huy',   x: 360, y: 300, ready: true,  delay: 6,  accept: true },
+    { id: 'v5', name: 'Ngọc Lan',  x: 455, y: 420, ready: true,  delay: 8,  accept: true },
+    { id: 'v6', name: 'Đức Thịnh', x: 840, y: 420, ready: true,  delay: 10, accept: true },
+    { id: 'v7', name: 'Khánh Linh',x: 250, y: 145, ready: true,  delay: 12, accept: true },
+    { id: 'v8', name: 'Hoàng Nam', x: 150, y: 250, ready: true,  delay: 9,  accept: true },
+    { id: 'v9', name: 'Bảo Trâm',  x: 60,  y: 440, ready: true,  delay: 9,  accept: true },
+    { id: 'v10',name: 'Tuấn Kiệt', x: 780, y: 540, ready: true,  delay: 9,  accept: true },
+    { id: 'v11',name: 'Mai Phương',x: 330, y: 520, ready: true,  delay: 9,  accept: true },
+    { id: 'v12',name: 'Văn Long',  x: 610, y: 145, ready: false, delay: 9,  accept: true },
+    { id: 'v13',name: 'Thanh Tâm', x: 120, y: 145,  ready: false, delay: 9,  accept: true },
+    { id: 'v14',name: 'Hải Yến',   x: 860, y: 80,  ready: true,  delay: 9,  accept: true }
+  ];
+  // Kịch bản mẫu: thao tác của người chứng kiến theo thời gian mô phỏng (giây)
+  const SCRIPT = [
+    { t: 0,  act: 'sos' },
+    { t: 3,  act: 'q1' },
+    { t: 5,  act: 'q2' },
+    { t: 6,  act: 'send' },
+    { t: 11, act: 'call' },
+    { t: 17, act: 'cpr' }
+  ];
+  const TARGETS = { compress: 60, firstVol: 240, aed: 300 };
+
+  // ---------- Trạng thái ----------
+  let S;
+  function freshState() {
+    return {
+      t: null, phase: 'idle', role: 'bystander', auto: false, scriptIdx: 0,
+      q1: null, q2: null, alarmAt: null, callAt: null, cprAt: null, doneAt: null,
+      vols: VOL_SEED.map(v => ({ ...v, x0: v.x, y0: v.y, status: v.ready ? 'idle' : 'off', role: null, path: [], dwell: 0, notifiedAt: null, decideAt: null, aed: null })),
+      aedTaken: {}, log: [], metrics: { alarm: null, call: null, compress: null, firstAccept: null, firstVol: null, aed: null },
+      lastCue: 0, lastSwap: 0, caption: 'Đặt gót bàn tay lên giữa ngực, hai tay chồng lên nhau. Ấn mạnh và nhanh theo tiếng bíp.',
+      volArrived: false, aedArrived: false
+    };
+  }
+  S = freshState();
+
+  let speed = 1, soundOn = true, voiceOn = true;
+
+  // ---------- Tiện ích ----------
+  const $ = id => document.getElementById(id);
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const fmt = s => {
+    if (s == null) return '—';
+    const v = Math.max(0, Math.round(s));
+    return String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
+  };
+  const fmtEta = s => {
+    const v = Math.max(0, Math.round(s));
+    return v >= 60 ? Math.floor(v / 60) + ' phút ' + String(v % 60).padStart(2, '0') + ' giây' : v + ' giây';
+  };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function pathLeft(v) {
+    let p = { x: v.x, y: v.y }, d = 0;
+    for (const w of v.path) { d += dist(p, w); p = w; }
+    return d;
+  }
+  function etaOf(v) {
+    let extra = 0;
+    if (v.path.length && v.path[0].aed && !S.aedTaken[v.path[0].aed]) extra = AED_PICKUP;
+    if (v.dwell > 0) extra = v.dwell;
+    return pathLeft(v) / MOVE_SPEED + extra;
+  }
+
+  function addLog(text, kind) {
+    S.log.unshift({ t: S.t ?? 0, text, kind: kind || '' });
+    renderLog();
+  }
+
+  // ---------- Âm thanh & giọng đọc ----------
+  let audioCtx = null, nextBeat = 0, beatTimer = null;
+  function startMetronome() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+    if (!audioCtx || beatTimer) return;
+    nextBeat = audioCtx.currentTime + 0.05;
+    beatTimer = setInterval(() => {
+      while (nextBeat < audioCtx.currentTime + 0.12) {
+        if (soundOn) {
+          const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.frequency.value = 880; o.type = 'sine';
+          g.gain.setValueAtTime(0.0001, nextBeat);
+          g.gain.exponentialRampToValueAtTime(0.25, nextBeat + 0.005);
+          g.gain.exponentialRampToValueAtTime(0.0001, nextBeat + 0.07);
+          o.connect(g).connect(audioCtx.destination);
+          o.start(nextBeat); o.stop(nextBeat + 0.08);
+        }
+        nextBeat += 60 / BPM;
+      }
+    }, 25);
+  }
+  function stopMetronome() { if (beatTimer) { clearInterval(beatTimer); beatTimer = null; } }
+
+  let viVoice = null;
+  function pickVoice() {
+    try {
+      const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+      viVoice = vs.find(v => /^vi/i.test(v.lang)) || null;
+    } catch (e) { viVoice = null; }
+  }
+  if (window.speechSynthesis) { pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {} }
+  function say(text) {
+    S.caption = text;
+    const c = $('caption'); if (c) c.textContent = text;
+    if (!voiceOn || !window.speechSynthesis || !viVoice || fastForwarding) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.voice = viVoice; u.lang = viVoice.lang; u.rate = 1.05;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  // ---------- Điều phối ----------
+  function readyCandidates() {
+    return S.vols.filter(v => v.status === 'idle' && dist(v, VICTIM) <= RADIUS);
+  }
+  function notify(v, role, aed) {
+    v.status = 'notified'; v.role = role; v.aed = aed || null;
+    v.notifiedAt = S.t; v.decideAt = S.t + v.delay;
+    const d = Math.round(dist(v, VICTIM));
+    if (role === 'aed') addLog(`Báo ${v.name}: lấy AED tại ${aed.label} rồi tới hiện trường (quãng đường ${Math.round(dist(v, aed) + dist(aed, VICTIM))} m)`, 'aed');
+    else addLog(`Báo ${v.name}: tới thẳng hiện trường (cách ${d} m)`, '');
+  }
+  function notifyNextScene() {
+    const c = readyCandidates().sort((a, b) => dist(a, VICTIM) - dist(b, VICTIM));
+    if (c.length) notify(c[0], 'scene');
+    else addLog('Không còn tình nguyện viên sẵn sàng trong bán kính 500 m', 'alarm');
+  }
+  function notifyAedRunner() {
+    let best = null;
+    for (const v of readyCandidates()) {
+      for (const a of AEDS) {
+        if (S.aedTaken[a.id] === 'assigned') continue;
+        const cost = dist(v, a) + dist(a, VICTIM);
+        if (!best || cost < best.cost) best = { v, a, cost };
+      }
+    }
+    if (best) { S.aedTaken[best.a.id] = 'assigned'; notify(best.v, 'aed', best.a); }
+  }
+  function dispatch() {
+    const c = readyCandidates().sort((a, b) => dist(a, VICTIM) - dist(b, VICTIM));
+    const nReady = S.vols.filter(v => v.status === 'idle').length;
+    addLog(`Phát báo động: ${c.length}/${nReady} tình nguyện viên đang trực nằm trong bán kính 500 m`, 'alarm');
+    c.slice(0, N_SCENE).forEach(v => notify(v, 'scene'));
+    notifyAedRunner();
+  }
+  function accept(v) {
+    v.status = 'enroute';
+    v.path = v.role === 'aed' ? [{ x: v.aed.x, y: v.aed.y, aed: v.aed.id }, { x: VICTIM.x, y: VICTIM.y }] : [{ x: VICTIM.x, y: VICTIM.y }];
+    if (S.metrics.firstAccept == null) S.metrics.firstAccept = S.t;
+    addLog(`${v.name} nhận ca, dự kiến tới sau ${fmtEta(etaOf(v))}`, 'go');
+    if (S.phase === 'coach') say(`${v.name} đã nhận ca và đang chạy tới. Tiếp tục ép tim.`);
+    render();
+  }
+  function decline(v) {
+    v.status = 'declined';
+    addLog(`${v.name} không thể đi, chuyển báo động cho người kế tiếp`, '');
+    if (v.role === 'aed') { S.aedTaken[v.aed.id] = undefined; notifyAedRunner(); }
+    else notifyNextScene();
+    render();
+  }
+
+  // ---------- Thao tác của người chứng kiến ----------
+  function act(a) {
+    if (a === 'sos' && S.phase === 'idle') {
+      S.t = 0; S.phase = 'confirm';
+      addLog('Người chứng kiến bấm “Báo ngừng tim”', 'alarm');
+    } else if (a === 'q1' && S.phase === 'confirm') { S.q1 = 'yes'; }
+    else if (a === 'q2' && S.phase === 'confirm') { S.q2 = 'yes'; }
+    else if (a === 'send' && S.phase === 'confirm' && S.q1 && S.q2) {
+      S.phase = 'call'; S.alarmAt = S.t; S.metrics.alarm = S.t;
+      addLog(`Gửi báo động kèm vị trí: ${VICTIM.label}`, 'alarm');
+      dispatch();
+    } else if (a === 'call' && S.phase === 'call') {
+      S.callAt = S.t; S.metrics.call = S.t;
+      addLog('Đã gọi 115 (mô phỏng), bật loa ngoài', '');
+      S.phase = 'coach';
+      S.caption = 'Bấm “Bắt đầu ép” rồi ấn theo tiếng bíp.';
+    } else if (a === 'cpr' && S.phase === 'coach' && S.cprAt == null) {
+      S.cprAt = S.t; S.lastCue = S.t; S.lastSwap = S.t;
+      if (S.metrics.compress == null) S.metrics.compress = S.t;
+      addLog('Người chứng kiến bắt đầu ép tim theo hướng dẫn', 'go');
+      if (!fastForwarding) startMetronome();
+      say('Đặt gót bàn tay lên giữa ngực, hai tay chồng lên nhau. Ấn mạnh và nhanh theo tiếng bíp.');
+    } else if (a === 'end' && S.phase === 'coach') {
+      S.phase = 'done'; S.doneAt = S.t; stopMetronome();
+      addLog('Kết thúc ca, chuyển cho đội cấp cứu 115', '');
+    }
+    render();
+  }
+
+  // ---------- Vòng mô phỏng ----------
+  let fastForwarding = false;
+  function step(dt) {
+    if (S.t == null) return;
+    S.t += dt;
+    if (S.auto) {
+      while (S.scriptIdx < SCRIPT.length && SCRIPT[S.scriptIdx].t <= S.t) { act(SCRIPT[S.scriptIdx].act); S.scriptIdx++; }
+    }
+    for (const v of S.vols) {
+      if (v.status === 'notified' && S.t >= v.decideAt) { v.accept ? accept(v) : decline(v); }
+      if (v.status === 'enroute') {
+        if (v.dwell > 0) { v.dwell -= dt; if (v.dwell <= 0) { v.dwell = 0; addLog(`${v.name} đã lấy máy AED, đang mang tới`, 'aed'); } continue; }
+        let move = MOVE_SPEED * dt;
+        while (move > 0 && v.path.length) {
+          const w = v.path[0], d = dist(v, w);
+          if (d <= move) {
+            v.x = w.x; v.y = w.y; move -= d; v.path.shift();
+            if (w.aed) { S.aedTaken[w.aed] = v.id; v.dwell = AED_PICKUP; move = 0; }
+          } else { v.x += (w.x - v.x) / d * move; v.y += (w.y - v.y) / d * move; move = 0; }
+        }
+        if (!v.path.length && v.dwell <= 0) arrive(v);
+      }
+    }
+    if (S.phase === 'coach' && S.cprAt != null) {
+      if (S.t - S.lastCue >= 30 && S.t - S.lastSwap < 118) { S.lastCue = S.t; say('Ấn sâu khoảng 5 đến 6 phân. Để ngực nảy lên hết sau mỗi lần ấn.'); }
+      if (S.t - S.lastSwap >= 120) { S.lastSwap = S.t; S.lastCue = S.t; say('Đã 2 phút. Nếu có người thay, hãy đổi người ép, đổi thật nhanh.'); }
+    }
+    if (S.auto && S.phase === 'coach' && S.aedArrived && S.t - S.metrics.aed >= 10) act('end');
+  }
+  function arrive(v) {
+    v.status = 'arrived';
+    if (v.role === 'aed') {
+      S.aedArrived = true; S.metrics.aed = S.t;
+      addLog(`${v.name} mang AED tới hiện trường`, 'aed');
+      if (S.phase === 'coach') say('Máy AED đã tới. Bật máy, dán miếng điện cực theo hình, và làm theo lời máy.');
+    } else {
+      if (S.metrics.firstVol == null) {
+        S.metrics.firstVol = S.t;
+        if (S.metrics.compress == null) S.metrics.compress = S.t;
+        if (S.phase === 'coach') say(`${v.name} đã tới. Tiếp tục ép cho đến khi bạn ấy nói đổi người.`);
+      }
+      S.volArrived = true;
+      addLog(`${v.name} tới hiện trường và tham gia ép tim`, 'go');
+    }
+    render();
+  }
+
+  let last = performance.now(), uiAcc = 0;
+  function loop(now) {
+    const dt = Math.min(0.25, (now - last) / 1000) * speed; last = now;
+    step(dt);
+    uiAcc += dt;
+    if (uiAcc > 0.2 * speed) { uiAcc = 0; renderLive(); }
+    drawDyn();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Vẽ bản đồ ----------
+  function drawBase() {
+    const B = (x, y, w, h, label, cls) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" style="fill:var(${cls || '--map-block'})"></rect>` +
+      (label ? `<text x="${x + w / 2}" y="${y + 22}" text-anchor="middle" font-size="14" font-weight="600" style="fill:var(--muted);font-family:var(--font-body)">${label}</text>` : '');
+    let s = `<rect x="0" y="0" width="900" height="600" style="fill:var(--map-ground)"></rect>`;
+    s += `<path d="M0 300H900M450 0V600M0 40H900M40 0V600M860 0V600" stroke-width="18" style="fill:none;stroke:var(--map-road)"></path>`;
+    s += B(70, 70, 100, 60, 'Nhà A1') + B(200, 70, 100, 60, 'Nhà A2') + B(70, 160, 100, 60, 'Nhà A3') + B(200, 160, 100, 60, 'Nhà A4');
+    s += B(540, 70, 100, 60, 'Nhà B1') + B(670, 70, 100, 60, 'Nhà B2') + B(556, 160, 100, 66, 'Nhà B3') + B(686, 160, 100, 60, 'Nhà B4');
+    s += B(360, 140, 140, 70, 'Căn tin');
+    s += B(70, 340, 250, 160, 'Sân bóng', '--map-green');
+    s += B(375, 325, 100, 62, 'Trạm y tế');
+    s += B(540, 330, 160, 100, 'Nhà thi đấu');
+    s += B(730, 340, 100, 120, 'Thư viện');
+    s += `<text x="450" y="590" text-anchor="middle" font-size="13" style="fill:var(--muted);font-family:var(--font-body)">Cổng chính</text>`;
+    // thước tỉ lệ
+    s += `<g font-size="12" style="fill:var(--muted);font-family:var(--font-mono)"><path d="M720 575h100M720 569v12M820 569v12" stroke-width="2" style="fill:none;stroke:var(--muted)"></path><text x="770" y="563" text-anchor="middle">100 m</text></g>`;
+    $('map-base').innerHTML = s;
+  }
+  // Lớp "vòng nhấp nháy" chỉ dựng lại khi trạng thái đổi, để hiệu ứng không bị khởi động lại mỗi khung hình
+  let ringKey = '';
+  function drawRings() {
+    const notified = S.vols.filter(v => v.status === 'notified');
+    const key = (S.t != null) + '|' + notified.map(v => v.id).join(',');
+    if (key === ringKey) return;
+    ringKey = key;
+    let s = '';
+    if (S.t != null) s += `<circle class="victim-ring" cx="${VICTIM.x}" cy="${VICTIM.y}" r="14"></circle>`;
+    for (const v of notified) s += `<circle class="notified-ring" cx="${v.x}" cy="${v.y}" r="9"></circle>`;
+    $('map-rings').innerHTML = s;
+  }
+  function drawDyn() {
+    drawRings();
+    let s = '';
+    if (S.t != null && S.alarmAt != null) s += `<circle cx="${VICTIM.x}" cy="${VICTIM.y}" r="${RADIUS}" stroke-width="2" stroke-dasharray="8 8" opacity=".55" style="fill:none;stroke:var(--alarm)"></circle>`;
+    for (const a of AEDS) {
+      const taken = S.aedTaken[a.id] && S.aedTaken[a.id] !== 'assigned';
+      if (taken) continue;
+      s += `<g><rect x="${a.x - 15}" y="${a.y - 11}" width="30" height="22" rx="5" style="fill:var(--aed)"></rect><text x="${a.x}" y="${a.y + 4}" text-anchor="middle" font-size="10" font-weight="700" style="fill:var(--surface);font-family:var(--font-mono)">AED</text></g>`;
+    }
+    for (const v of S.vols) {
+      if (v.status === 'enroute' && v.path.length) {
+        let d = `M${v.x.toFixed(1)} ${v.y.toFixed(1)}`; for (const w of v.path) d += `L${w.x} ${w.y}`;
+        s += `<path d="${d}" stroke-width="2.5" stroke-dasharray="6 6" style="fill:none;stroke:${v.role === 'aed' ? 'var(--aed)' : 'var(--go)'}"></path>`;
+      }
+    }
+    if (S.t != null) s += `<circle cx="${VICTIM.x}" cy="${VICTIM.y}" r="10" stroke-width="3" style="fill:var(--alarm);stroke:var(--surface)"></circle>`;
+    for (const v of S.vols) {
+      if (v.status === 'arrived') continue;
+      const col = { off: 'var(--off)', idle: 'var(--go)', notified: 'var(--aed)', enroute: 'var(--go)', declined: 'var(--off)' }[v.status];
+      const hollow = v.status === 'idle' || v.status === 'off' || v.status === 'declined';
+      s += `<circle cx="${v.x.toFixed(1)}" cy="${v.y.toFixed(1)}" r="8" stroke-width="3" style="fill:${hollow ? 'var(--surface)' : col};stroke:${col}"></circle>`;
+      if (v.status === 'enroute' && v.role === 'aed' && S.aedTaken[v.aed.id] === v.id) s += `<rect x="${(v.x + 8).toFixed(1)}" y="${(v.y - 18).toFixed(1)}" width="22" height="14" rx="3" style="fill:var(--aed)"></rect>`;
+      if (v.status !== 'idle' && v.status !== 'off') s += `<text x="${(v.x + 12).toFixed(1)}" y="${(v.y + 22).toFixed(1)}" font-size="12.5" font-weight="600" style="fill:var(--fg);font-family:var(--font-body)">${esc(v.name)}</text>`;
+    }
+    const arrived = S.vols.filter(v => v.status === 'arrived');
+    if (arrived.length) s += `<text x="${VICTIM.x + 16}" y="${VICTIM.y - 14}" font-size="13" font-weight="700" style="fill:var(--go);font-family:var(--font-body)">${arrived.length} TNV tại hiện trường${S.aedArrived ? ' · có AED' : ''}</text>`;
+    if (S.t != null) s += `<text x="${VICTIM.x - 12}" y="${VICTIM.y + 34}" text-anchor="end" font-size="13" font-weight="700" style="fill:var(--alarm);font-family:var(--font-body)">${VICTIM.label}</text>`;
+    $('map-dyn').innerHTML = s;
+  }
+
+  // ---------- Vẽ điện thoại ----------
+  const me = () => S.vols.find(v => v.me);
+  function render() {
+    $('tab-bystander').setAttribute('aria-selected', S.role === 'bystander');
+    $('tab-volunteer').setAttribute('aria-selected', S.role === 'volunteer');
+    const scr = $('screen');
+    scr.className = 'scr' + (S.role === 'bystander' && S.phase === 'coach' ? ' coach' : '');
+    scr.innerHTML = S.role === 'bystander' ? bystanderView() : volunteerView();
+    renderLive(); renderMetrics();
+  }
+  function bystanderView() {
+    const nReady = S.vols.filter(v => v.ready).length;
+    if (S.phase === 'idle') return `
+      <p class="eyebrow">Khu ký túc xá · ${nReady} tình nguyện viên đang trực</p>
+      <button class="sos" type="button" data-act="sos">Báo<br>ngừng tim</button>
+      <p class="hint">Dùng khi có người bất tỉnh, gọi không phản ứng, không thở hoặc chỉ thở ngáp từng hơi.</p>
+      <div class="kv"><span>Cấp cứu</span><b class="mono">115</b></div>
+      <div class="kv"><span>Máy AED gần nhất</span><b>${AEDS.slice().sort((a, b) => dist(a, VICTIM) - dist(b, VICTIM))[0].label}</b></div>`;
+    if (S.phase === 'confirm') return `
+      <p class="eyebrow">Bước 1/3 · Xác nhận nhanh</p>
+      <h2>Kiểm tra trong 10 giây</h2>
+      <div class="q"><p>Gọi to, lay vai: người đó không phản ứng?</p>
+        <div class="opts"><button type="button" data-act="q1" aria-pressed="${S.q1 === 'yes'}">Đúng</button><button type="button" data-act="q1u" aria-pressed="${S.q1 === 'unsure'}">Không chắc</button></div></div>
+      <div class="q"><p>Không thở, hoặc chỉ thở ngáp từng hơi?</p>
+        <div class="opts"><button type="button" data-act="q2" aria-pressed="${S.q2 === 'yes'}">Đúng</button><button type="button" data-act="q2u" aria-pressed="${S.q2 === 'unsure'}">Không chắc</button></div></div>
+      <p class="hint">Nếu không chắc, vẫn hãy báo động: ép tim cho người không ngừng tim hiếm khi gây hại nghiêm trọng, còn bỏ lỡ ngừng tim thì có thể gây tử vong.</p>
+      <button class="btn-big btn-alarm" type="button" data-act="send" ${S.q1 && S.q2 ? '' : 'disabled'}>Gửi báo động</button>
+      <button class="link-btn" type="button" data-act="reset">Người đó vẫn tỉnh hoặc thở bình thường: hủy, chỉ gọi 115</button>`;
+    if (S.phase === 'call') {
+      const n = S.vols.filter(v => v.status === 'notified' || v.status === 'enroute').length;
+      return `
+      <p class="eyebrow">Bước 2/3 · Gọi cấp cứu</p>
+      <div class="call-card"><span class="num">115</span><span>Bật loa ngoài, đặt điện thoại cạnh người bệnh</span></div>
+      <div class="banner go">Đã báo cho <span data-live="nnotified">${n}</span> tình nguyện viên gần nhất. Vị trí: ${VICTIM.label}.</div>
+      <button class="btn-big btn-alarm" type="button" data-act="call">Gọi 115 và tiếp tục</button>
+      <p class="note">Nguyên mẫu chỉ mô phỏng cuộc gọi. Bản thật sẽ mở trình gọi điện của máy với số 115.</p>`;
+    }
+    if (S.phase === 'coach') return `
+      <div class="coach-top"><span class="pill alarm">Bước 3/3 · Ép tim</span><span class="pill mono" data-live="elapsed">T+${fmt(S.t)}</span></div>
+      <div class="press-wrap">
+        <div class="press ${S.cprAt != null ? 'running' : ''}" aria-hidden="true">ẤN</div>
+        <div class="press-meta"><span><b class="mono">${BPM}</b> lần/phút</span><span>Đã ấn <b class="mono" data-live="count">0</b></span><span>sâu <b>5–6 cm</b></span></div>
+      </div>
+      ${S.cprAt == null ? `<button class="btn-big btn-go" type="button" data-act="cpr">Bắt đầu ép</button>` : ''}
+      <div class="caption" id="caption" aria-live="polite">${esc(S.caption)}</div>
+      <div class="cards" id="coach-cards"></div>
+      ${S.volArrived || S.aedArrived ? `<button class="btn-big btn-ghost" type="button" data-act="end">Đội 115 đã tới · kết thúc</button>` : ''}`;
+    if (S.phase === 'done') return `
+      <p class="eyebrow">Ca đã kết thúc</p>
+      <h2>Bạn đã làm đúng việc cần làm</h2>
+      <div class="kv"><span>Bắt đầu ép tim sau</span><b class="mono">${fmt(S.metrics.compress)}</b></div>
+      <div class="kv"><span>Tình nguyện viên tới sau</span><b class="mono">${fmt(S.metrics.firstVol)}</b></div>
+      <div class="kv"><span>Máy AED tới sau</span><b class="mono">${fmt(S.metrics.aed)}</b></div>
+      <p class="hint">Chứng kiến một ca ngừng tim có thể để lại căng thẳng. Nhóm hỗ trợ sẽ nhắn hỏi thăm bạn trong 24 giờ tới; bạn có thể từ chối.</p>
+      <button class="btn-big btn-ghost" type="button" data-act="reset">Làm lại</button>`;
+    return '';
+  }
+  function volunteerView() {
+    const v = me();
+    if (v.status === 'idle' || v.status === 'off') return `
+      <p class="eyebrow">Tài khoản tình nguyện viên</p>
+      <div class="profile"><span class="name">${esc(v.name)}</span><span class="hint">Chứng nhận CPR + AED · còn hạn đến 05/2027</span><span class="hint">Ôn tập gần nhất: 10/2026</span></div>
+      <div class="toggle"><div><b>Sẵn sàng nhận báo động</b><p class="hint">Chỉ báo khi bạn ở trong bán kính 500 m.</p></div>
+        <button class="switch" type="button" role="switch" aria-checked="${v.status === 'idle'}" aria-label="Sẵn sàng nhận báo động" data-act="toggle"></button></div>
+      <p class="note">Vị trí của bạn chỉ được đọc tại thời điểm có báo động để chọn người gần nhất. Ứng dụng không lưu lịch sử di chuyển.</p>
+      <p class="hint">${S.alarmAt == null ? 'Chưa có báo động. Hãy chuyển sang vai “Người chứng kiến” và bấm “Báo ngừng tim”, hoặc chạy kịch bản mẫu.' : 'Báo động hiện tại đã được giao cho người ở gần hơn.'}</p>`;
+    if (v.status === 'notified') return `
+      <div class="alert-card" role="alert">
+        <span class="eyebrow" style="color:inherit">Báo động ngừng tim</span>
+        <span class="big">Cách bạn ${Math.round(dist(v, VICTIM))} m</span>
+        <span>${VICTIM.label} · cần người ép tim ngay</span>
+        <span class="mono">Đã báo được <span data-live="since">${fmt(S.t - v.notifiedAt)}</span></span>
+      </div>
+      <p class="hint">${v.role === 'aed' ? `Nhiệm vụ: lấy máy AED tại ${v.aed.label} rồi mang tới hiện trường.` : 'Nhiệm vụ: tới thẳng hiện trường và thay người đang ép tim.'}</p>
+      <button class="btn-big btn-go" type="button" data-act="accept">Nhận ca</button>
+      <button class="btn-big btn-ghost" type="button" data-act="decline">Không thể đi</button>`;
+    if (v.status === 'enroute') return `
+      <p class="eyebrow">Đang tới hiện trường</p>
+      <h2>${VICTIM.label}</h2>
+      <div class="kv"><span>Còn lại</span><b class="mono" data-live="meleft">${Math.round(pathLeft(v))} m</b></div>
+      <div class="kv"><span>Dự kiến tới sau</span><b class="mono" data-live="meeta">${fmtEta(etaOf(v))}</b></div>
+      <ol class="steps">
+        <li>Quan sát an toàn trước khi tới gần: điện, xe cộ, nước.</li>
+        <li>Báo người đang ép: “Tôi đã học CPR, để tôi thay.” Đổi người trong dưới 5 giây.</li>
+        <li>Ấn giữa ngực 100–120 lần/phút, sâu 5–6 cm, để ngực nảy lên hết.</li>
+        <li>Nhờ một người ra cổng hoặc sảnh đón xe 115.</li>
+      </ol>`;
+    if (v.status === 'arrived') return `
+      <p class="eyebrow">Đã tới hiện trường</p>
+      <h2>Tiếp tục ép tim đến khi có AED hoặc đội 115</h2>
+      <ol class="steps"><li>Ép liên tục, đổi người mỗi 2 phút nếu có người thay.</li><li>Khi AED tới: bật máy, dán điện cực, làm theo lời máy, không chạm vào người bệnh khi máy phân tích.</li></ol>`;
+    if (v.status === 'declined') return `
+      <p class="eyebrow">Đã ghi nhận</p>
+      <h2>Ca này đã được chuyển cho người khác</h2>
+      <p class="hint">Cảm ơn bạn đã phản hồi nhanh. Từ chối không ảnh hưởng tới tư cách tình nguyện viên.</p>`;
+    return '';
+  }
+  function renderLive() {
+    $('clock').textContent = 'T+' + fmt(S.t || 0);
+    const set = (k, val) => document.querySelectorAll(`[data-live="${k}"]`).forEach(el => { el.textContent = val; });
+    set('elapsed', 'T+' + fmt(S.t || 0));
+    if (S.cprAt != null) set('count', Math.floor((S.t - S.cprAt) * BPM / 60));
+    set('nnotified', S.vols.filter(v => v.status === 'notified' || v.status === 'enroute').length);
+    const v = me();
+    if (v.status === 'notified') set('since', fmt(S.t - v.notifiedAt));
+    if (v.status === 'enroute') { set('meleft', Math.round(pathLeft(v)) + ' m'); set('meeta', fmtEta(etaOf(v))); }
+    const cc = $('coach-cards');
+    if (cc) {
+      const list = S.vols.filter(x => x.role && (x.status === 'enroute' || x.status === 'arrived' || x.status === 'notified'))
+        .sort((a, b) => (a.role === 'aed') - (b.role === 'aed'));
+      cc.innerHTML = list.map(x => {
+        const right = x.status === 'arrived' ? 'Đã tới' : x.status === 'notified' ? 'Đang báo' : fmt(etaOf(x));
+        const sub = x.role === 'aed' ? (x.status === 'arrived' ? 'AED đã ở hiện trường' : S.aedTaken[x.aed.id] === x.id ? 'Đang mang AED tới' : `Đi lấy AED tại ${x.aed.label}`) : (x.status === 'arrived' ? 'Đang ép tim cùng bạn' : 'Tình nguyện viên CPR đang chạy tới');
+        return `<div class="vcard ${x.role === 'aed' ? 'aed' : ''} ${x.status === 'arrived' ? 'arrived' : ''}"><span class="dot"></span><div><div class="who">${esc(x.name)}</div><div class="sub">${sub}</div></div><span class="eta">${right}</span></div>`;
+      }).join('');
+    }
+    renderMetrics();
+  }
+  function renderLog() {
+    $('log').innerHTML = S.log.length ? S.log.map(e => `<li class="${e.kind}"><span class="t">T+${fmt(e.t)}</span><span class="m">${esc(e.text)}</span></li>`).join('')
+      : `<li><span class="t">—</span><span class="m">Đang trực: ${S.vols.filter(v => v.ready).length} tình nguyện viên, ${AEDS.length} máy AED. Bấm “Chạy kịch bản mẫu” để xem một ca diễn tập.</span></li>`;
+  }
+  function renderMetrics() {
+    const m = S.metrics;
+    const row = (label, val, target) => {
+      let tag = '<span class="tag wait">chờ</span>';
+      if (target == null) tag = val == null ? tag : '<span class="tag ok">đã ghi</span>';
+      else if (val != null) tag = val <= target ? `<span class="tag ok">≤ ${fmt(target)}</span>` : `<span class="tag miss">&gt; ${fmt(target)}</span>`;
+      else if (S.t != null && S.t > target) tag = `<span class="tag miss">&gt; ${fmt(target)}</span>`;
+      else if (target != null) tag = `<span class="tag wait">≤ ${fmt(target)}</span>`;
+      return `<tr><td>${label}</td><td class="v">${fmt(val)}</td><td>${tag}</td></tr>`;
+    };
+    $('metrics').innerHTML =
+      row('Gửi báo động', m.alarm, null) +
+      row('Gọi 115', m.call, null) +
+      row('Lần ép tim đầu tiên', m.compress, TARGETS.compress) +
+      row('Tình nguyện viên nhận ca', m.firstAccept, null) +
+      row('Tình nguyện viên đầu tiên tới', m.firstVol, TARGETS.firstVol) +
+      row('Máy AED tới', m.aed, TARGETS.aed);
+  }
+
+  // ---------- Sự kiện ----------
+  $('screen').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = b.dataset.act;
+    if (a === 'reset') return reset();
+    if (a === 'q1u') { S.q1 = 'unsure'; return render(); }
+    if (a === 'q2u') { S.q2 = 'unsure'; return render(); }
+    if (a === 'accept') { const v = me(); if (v.status === 'notified') { v.decideAt = S.t; v.accept = true; } return; }
+    if (a === 'decline') { const v = me(); if (v.status === 'notified') { v.decideAt = S.t; v.accept = false; } return; }
+    if (a === 'toggle') { const v = me(); if (v.status === 'idle') v.status = 'off'; else if (v.status === 'off') v.status = 'idle'; return render(); }
+    act(a);
+  });
+  $('tab-bystander').addEventListener('click', () => { S.role = 'bystander'; render(); });
+  $('tab-volunteer').addEventListener('click', () => { S.role = 'volunteer'; render(); });
+  $('btn-auto').addEventListener('click', () => {
+    reset(); S.auto = true; act('sos'); S.scriptIdx = 1;
+    try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
+  });
+  $('sel-speed').addEventListener('change', e => { speed = Number(e.target.value) || 1; });
+  $('btn-sound').addEventListener('click', e => { soundOn = !soundOn; e.currentTarget.setAttribute('aria-pressed', soundOn); });
+  $('btn-voice').addEventListener('click', e => { voiceOn = !voiceOn; e.currentTarget.setAttribute('aria-pressed', voiceOn); if (!voiceOn && window.speechSynthesis) try { speechSynthesis.cancel(); } catch (x) {} });
+  $('btn-reset').addEventListener('click', reset);
+  $('btn-copy').addEventListener('click', () => {
+    const m = S.metrics;
+    const lines = ['Mốc,Giây kể từ lúc bấm báo động',
+      `Gửi báo động,${m.alarm == null ? '' : Math.round(m.alarm)}`, `Gọi 115,${m.call == null ? '' : Math.round(m.call)}`,
+      `Lần ép tim đầu tiên,${m.compress == null ? '' : Math.round(m.compress)}`, `Tình nguyện viên nhận ca,${m.firstAccept == null ? '' : Math.round(m.firstAccept)}`,
+      `Tình nguyện viên đầu tiên tới,${m.firstVol == null ? '' : Math.round(m.firstVol)}`, `Máy AED tới,${m.aed == null ? '' : Math.round(m.aed)}`];
+    const text = lines.join('\n');
+    const msg = $('copy-msg');
+    const fallback = () => { msg.textContent = 'Không sao chép được tự động. Kết quả: ' + lines.slice(1).join('; '); };
+    try { navigator.clipboard.writeText(text).then(() => { msg.textContent = 'Đã sao chép dạng CSV.'; }, fallback); } catch (e) { fallback(); }
+  });
+  function reset() {
+    stopMetronome();
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    const role = S.role; S = freshState(); S.role = role;
+    $('copy-msg').textContent = '';
+    renderLog(); render(); drawDyn();
+  }
+
+  // Chạy nhanh tới một mốc (dùng để chụp ảnh minh họa qua địa chỉ #shot-...)
+  function fastForward(target) {
+    fastForwarding = true;
+    S.auto = true; act('sos'); S.scriptIdx = 1;
+    while (S.t < target) step(0.1);
+    fastForwarding = false;
+  }
+
+  drawBase(); renderLog(); render(); drawDyn();
+  const shots = { 'shot-confirm': [4, 'bystander'], 'shot-coach': [50, 'bystander'], 'shot-volunteer': [10, 'volunteer'], 'shot-enroute': [40, 'volunteer'], 'shot-done': [200, 'bystander'] };
+  const h = (location.hash || '').slice(1);
+  if (shots[h]) { S.role = shots[h][1]; fastForward(shots[h][0]); render(); drawDyn(); }
+  requestAnimationFrame(t => { last = t; requestAnimationFrame(loop); });
+})();
+</script>
+
+</body>
+</html>
