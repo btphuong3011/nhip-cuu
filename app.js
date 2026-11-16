@@ -34,13 +34,12 @@
   }
   function fillIcons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); }); }
   const fmt = value => value == null ? '—' : `${String(Math.floor(Math.max(0,Math.round(value))/60)).padStart(2,'0')}:${String(Math.max(0,Math.round(value))%60).padStart(2,'0')}`;
-  const etaText = seconds => seconds >= 60 ? `${Math.floor(seconds/60)} phút ${Math.round(seconds%60)} giây` : `${Math.ceil(seconds)} giây`;
   const phaseNames = { idle:'Chưa bắt đầu',confirm:'Xác nhận tình huống',call:'Gọi cấp cứu (mô phỏng)',coach:'Hướng dẫn & điều phối',done:'Đã kết thúc mô phỏng' };
   let selectedScenario = new URLSearchParams(location.search).get('scenario') || 'standard';
   if (!Sim.SCENARIOS.some(x => x.id === selectedScenario)) selectedScenario = 'standard';
   let sim = Sim.createSimulation(selectedScenario), role = 'bystander', speed = 1;
   let screenKey = '', mapRingKey = '', logLength = -1, savedThisRun = false, snapshotMode = false;
-  let soundOn = false, voiceOn = false, audio = null, beatTimer = null, nextBeat = 0, viVoice = null, spokenVersion = -1;
+  let soundOn = false, voiceOn = false, soundPreferenceSet = false, audio = null, beatTimer = null, nextBeat = 0, viVoice = null, spokenVersion = -1;
   let toastTimer, clearArmed = false, clearTimer;
   const STORAGE_KEY = 'nhip-cuu.drill-reports.v1';
   let storageAvailable = true, reports = [], selectedReportId = null;
@@ -99,13 +98,16 @@
   function pickVoice() { viVoice = window.speechSynthesis?.getVoices().find(v => /^vi/i.test(v.lang)) || null; }
   function cancelSpeech() { try { window.speechSynthesis?.cancel(); } catch (_) {} }
   function speakCurrent() {
-    if (!voiceOn || !viVoice || sim.state.paused || sim.state.phase !== 'coach' || sim.state.cprAt == null) return;
-    cancelSpeech(); const u = new SpeechSynthesisUtterance(sim.state.caption); u.voice = viVoice; u.lang = viVoice.lang; u.rate = 1; speechSynthesis.speak(u);
+    if (!voiceOn || !viVoice || sim.state.paused) return;
+    const s = sim.state;
+    const text = s.phase === 'coach' ? s.caption : s.phase === 'confirm' ? s.q1 == null ? 'Đảm bảo hiện trường an toàn. Gọi to, lay vai. Người đó có phản ứng không?' : 'Nhìn lồng ngực. Người đó không thở bình thường hoặc chỉ thở ngáp?' : s.phase === 'call' ? 'Gọi 115 ngay. Bật loa ngoài và làm theo điều phối viên.' : s.phase === 'done' ? 'Đã kết thúc lượt diễn tập.' : 'Nhấn Bắt đầu hỗ trợ để diễn tập từng bước.';
+    cancelSpeech(); const u = new SpeechSynthesisUtterance(text); u.voice = viVoice; u.lang = viVoice.lang; u.rate = 1; speechSynthesis.speak(u);
   }
   if (window.speechSynthesis) { pickVoice(); speechSynthesis.addEventListener('voiceschanged',pickVoice); }
 
   function reset(scenario = selectedScenario) {
     stopBeat(); cancelSpeech(); selectedScenario = scenario; sim = Sim.createSimulation(scenario);
+    if ($('help-sheet').open) $('help-sheet').close();
     reports = reports.filter(r => r.id !== 'illustration');
     if (selectedReportId === 'illustration') selectedReportId = reports[0]?.id || null;
     screenKey = ''; logLength = -1; savedThisRun = false; spokenVersion = -1; snapshotMode = false;
@@ -118,37 +120,19 @@
     $('active-scenario').textContent = scenario.name; $('scenario-detail').textContent = scenario.detail;
     $('scenario-help').textContent = locked ? 'Bấm “Làm lại” để chọn tình huống khác.' : 'Chọn kịch bản, rồi bấm “Chạy diễn tập”.';
   }
-  function appButton(action,text,cls = '') { return `<button type="button" class="app-button ${cls}" data-act="${action}">${text}</button>`; }
-  function bystanderView() {
-    const s = sim.state;
-    if (s.phase === 'idle') {
-      const nearest = s.aeds.filter(a => a.available).sort((a,b) => Sim.distance(a,Sim.VICTIM)-Sim.distance(b,Sim.VICTIM))[0];
-      return `<div class="location-pill">${icon('pin')}Sảnh nhà B3 · vị trí giả lập</div><div><h2>Có người cần giúp?</h2><p class="hint">Kết nối người ở gần.<br>Tiếp sức trong những phút đầu.</p></div><button class="sos" type="button" data-act="sos">${icon('heart')}<span>Báo ngừng tim</span><span class="sos-sub">CHẠM ĐỂ DIỄN TẬP</span></button><p class="hint" style="text-align:center">Tình huống giả định: người lớn bất tỉnh,<br>không thở bình thường hoặc chỉ thở ngáp.</p><div class="phone-divider"></div><div class="kv"><span>Cấp cứu thật</span><b class="emergency-number">115</b></div><div class="kv"><span>AED gần điểm diễn tập</span><b>${esc(nearest?.label || 'Chưa có trạm khả dụng')}</b></div>`;
-    }
-    if (s.phase === 'confirm') return `<p class="eyebrow">BƯỚC 1 / 3 · NHẬN DIỆN</p><h2>Kiểm tra nhanh<br>tình huống.</h2><p class="hint">Đảm bảo hiện trường an toàn. Nếu nghi ngờ ngừng tim, gọi 115 ngay và làm theo hướng dẫn.</p><div class="question"><p>Người đó không phản ứng khi gọi to, lay vai?</p><div class="options"><button type="button" data-act="q1" aria-pressed="${s.q1 === 'yes'}">Đúng</button><button type="button" data-act="q1u" aria-pressed="${s.q1 === 'unsure'}">Không chắc</button></div></div><div class="question"><p>Không thở bình thường hoặc chỉ thở ngáp?</p><div class="options"><button type="button" data-act="q2" aria-pressed="${s.q2 === 'yes'}">Đúng</button><button type="button" data-act="q2u" aria-pressed="${s.q2 === 'unsure'}">Không chắc</button></div></div><button class="app-button danger" type="button" data-act="send" ${s.q1 && s.q2 ? '' : 'disabled'}>Gửi báo động mô phỏng ${icon('arrow')}</button><button class="app-link" type="button" data-act="reset">Hủy diễn tập</button>`;
-    if (s.phase === 'call') return `<p class="eyebrow">BƯỚC 2 / 3 · GỌI CẤP CỨU</p><h2>Gọi 115 ngay.</h2><div class="call-card">${icon('phone')}<strong>115</strong><span>Bật loa ngoài, làm theo<br>hướng dẫn của điều phối viên.</span></div><div class="banner">Đang báo cho <strong data-live="notified">0</strong> TNV. Không chờ TNV phản hồi để gọi cấp cứu.</div>${appButton('call',`${icon('phone')} Mô phỏng gọi 115`,'danger')}<p class="hint">Nút này chỉ ghi nhận một thao tác diễn tập, không thực hiện cuộc gọi.</p>`;
-    if (s.phase === 'coach') return `<div class="coach-top"><span class="pill">BƯỚC 3 / 3 · ÉP TIM</span><span class="mono" data-live="elapsed">00:00</span></div><div class="press-wrap"><div class="press ${s.cprAt != null ? 'running' : ''}" aria-hidden="true">ẤN</div><div class="press-meta"><span><b>110</b> lần/phút</span><span>Người lớn · <b>5–6 cm</b></span></div></div>${s.cprAt == null ? appButton('cpr','Bắt đầu ép · mô phỏng') : '<p class="hint" style="text-align:center">Nhịp dẫn mô phỏng: <b data-live="beats">0</b> · không đo lực ép thật</p>'}<div class="caption" id="caption" aria-live="polite">${esc(s.caption)}</div><div class="coach-cards" id="coach-cards"></div>${appButton('end','Kết thúc diễn tập','ghost')}`;
-    return `<span class="success-icon">${icon('check')}</span><p class="eyebrow">ĐÃ HOÀN TẤT LƯỢT MÔ PHỎNG</p><h2>Nhìn lại từng<br>nhịp kết nối.</h2><div class="kv"><span>Ép tim đầu tiên</span><b class="mono">${fmt(s.metrics.compress)}</b></div><div class="kv"><span>TNV đầu tiên tới</span><b class="mono">${fmt(s.metrics.firstVol)}</b></div><div class="kv"><span>AED tới hiện trường</span><b class="mono">${fmt(s.metrics.aed)}</b></div><p class="hint">Đây là thời gian tính từ lúc bắt đầu báo động, theo giả định của mô hình. Không phải kết quả thử nghiệm thực địa.</p>${appButton('report',`Xem báo cáo ${icon('arrow')}`)}${appButton('reset','Diễn tập lại','ghost')}`;
-  }
-  function volunteerView() {
-    const s = sim.state, v = s.vols.find(x => x.me);
-    if (s.phase === 'done') return `<span class="success-icon">${icon('check')}</span><p class="eyebrow">LƯỢT DIỄN TẬP ĐÃ KẾT THÚC</p><h2>Cảm ơn bạn<br>đã tiếp sức.</h2><p class="hint">Mở báo cáo để xem các mốc thời gian và tình huống cần cải thiện. Mọi người và nhiệm vụ đều giả lập.</p>${appButton('report','Xem báo cáo')}${appButton('reset','Diễn tập lại','ghost')}`;
-    if (['idle','off'].includes(v.status)) return `<p class="eyebrow">HỒ SƠ TÌNH NGUYỆN VIÊN GIẢ LẬP</p><div class="profile"><span class="avatar">MA</span><strong>${esc(v.name)}</strong><span>Đã hoàn thành CPR + AED (giả định)</span><span>Hiệu lực chứng nhận mô phỏng: 05/2027</span></div><div class="toggle"><div><strong>Sẵn sàng nhận ca</strong><p>Trong bán kính 500 m.</p></div><button type="button" class="switch" role="switch" aria-checked="${v.status === 'idle'}" aria-label="Sẵn sàng nhận báo động" data-act="toggle" ${s.phase !== 'idle' ? 'disabled' : ''}></button></div><p class="hint">${s.phase === 'idle' ? 'Chạy một kịch bản, hoặc chuyển sang vai người chứng kiến để bắt đầu.' : 'Ca hiện tại đã được giao cho tình nguyện viên khác.'}</p><div class="banner">Không lấy GPS thật. Các vị trí trên bản đồ đều được tạo sẵn để diễn tập.</div>`;
-    if (v.status === 'notified') return `<div class="alert-card"><span>BÁO ĐỘNG MÔ PHỎNG</span><strong>Cách bạn ${Math.round(Sim.distance(v,Sim.VICTIM))} m</strong><span>${Sim.VICTIM.label}</span></div><p class="hint">${v.role === 'aed' ? `Lấy AED tại ${esc(v.aed.label)}, rồi mang tới điểm diễn tập.` : 'Tới thẳng điểm diễn tập để hỗ trợ ép tim.'}</p><div class="kv"><span>Còn thời gian phản hồi</span><b class="mono" data-live="response-left">00:15</b></div>${appButton('accept',`${icon('check')} Nhận ca`)}${appButton('decline','Không thể tham gia','ghost')}<p class="hint">Sau 15 giây không phản hồi, hệ thống tự tìm người thay thế. Có thể tạm dừng mô phỏng để thao tác.</p>`;
-    if (v.status === 'enroute') return `<p class="eyebrow">ĐANG DI CHUYỂN · MÔ PHỎNG</p><h2>${Sim.VICTIM.label}</h2><div class="kv"><span>Quãng đường mô hình</span><b data-live="distance">—</b></div><div class="kv"><span>ETA mô hình</span><b data-live="eta">—</b></div><ol class="steps"><li>Đảm bảo an toàn hiện trường trước khi tiếp cận.</li><li>${v.role === 'aed' ? `Lấy AED tại ${esc(v.aed.label)} rồi tới hiện trường.` : 'Phối hợp với người đang ép tim; giảm tối đa thời gian gián đoạn.'}</li><li>Làm theo điều phối viên 115 và hướng dẫn của AED.</li><li>Nhờ người khác đón xe cấp cứu.</li></ol><div class="banner">Đường đi thẳng và ETA chỉ là giả định, chưa kết nối bản đồ đường đi thực tế.</div>`;
-    if (v.status === 'arrived') return `<span class="success-icon">${icon('check')}</span><p class="eyebrow">ĐÃ TỚI ĐIỂM DIỄN TẬP</p><h2>Phối hợp,<br>tiếp tục hỗ trợ.</h2><ol class="steps"><li>Tiếp tục hồi sức theo hướng dẫn của điều phối viên 115.</li><li>Khi có AED, bật máy và làm theo hướng dẫn. Không chạm người bệnh khi máy yêu cầu tránh ra.</li><li>Có người thay thì đổi người ép khoảng mỗi 2 phút, giảm tối đa gián đoạn.</li></ol><div class="banner">AED tới không đồng nghĩa xe cấp cứu đã tới hoặc người bệnh đã hồi phục.</div>`;
-    return `<span class="success-icon">${icon('arrow')}</span><p class="eyebrow">ĐÃ CHUYỂN NHIỆM VỤ</p><h2>Người khác<br>đang tiếp sức.</h2><p class="hint">${v.status === 'timedout' ? 'Bạn chưa phản hồi trong 15 giây. Hệ thống đã tìm tình nguyện viên thay thế.' : 'Đã ghi nhận bạn không thể tham gia. Nhiệm vụ được chuyển cho người khác.'}</p><div class="banner">Từ chối một ca không làm ảnh hưởng tư cách tình nguyện viên.</div>`;
-  }
+  function viewContext() { return {s:sim.state,icon,fmt,esc,eta:sim.eta,pathLeft:sim.pathLeft,distance:Sim.distance,victim:Sim.VICTIM}; }
+  function bystanderView() { return window.NhipCuuViews.bystander(viewContext()); }
+  function volunteerView() { return window.NhipCuuViews.volunteer(viewContext()); }
   function renderPhone(force = false) {
     const s = sim.state, v = s.vols.find(x => x.me);
-    const key = [role,s.phase,s.q1,s.q2,s.cprAt != null,v.status].join('|');
+    const key = [role,s.phase,s.q1,s.q2,s.cprAt != null,v.status,s.metrics.aed != null,s.metrics.call != null].join('|');
     if (!force && key === screenKey) return;
     const active = document.activeElement, action = $('screen').contains(active) ? active.dataset.act : null;
     const samePhase = screenKey.split('|')[1] === s.phase && screenKey.split('|')[0] === role;
     screenKey = key; const oldScroll = $('screen').scrollTop;
     $('screen').innerHTML = role === 'bystander' ? bystanderView() : volunteerView();
     $('screen').scrollTop = samePhase ? oldScroll : 0;
-    if (action) $('screen').querySelector(`[data-act="${action}"]`)?.focus({ preventScroll:true });
+    if (action) ($('screen').querySelector(`[data-act="${action}"]`) || $('screen').querySelector('.aid-button'))?.focus({ preventScroll:true });
     for (const r of ['bystander','volunteer']) { $(`tab-${r}`).setAttribute('aria-selected',String(role === r)); $(`tab-${r}`).tabIndex = role === r ? 0 : -1; }
     $('phone-panel').setAttribute('aria-labelledby',`tab-${role}`);
   }
@@ -158,9 +142,19 @@
     live('elapsed',fmt(s.t)); live('notified',s.vols.filter(x => ['notified','enroute'].includes(x.status)).length);
     live('beats',Math.max(0,Math.floor(((s.t || 0)-(s.cprAt || 0))*Sim.BPM/60)));
     live('response-left',fmt(Math.max(0,Sim.RESPONSE_TIMEOUT-((s.t || 0)-(v.notifiedAt || 0)))));
-    live('distance',`${Math.ceil(sim.pathLeft(v))} m`); live('eta',etaText(sim.eta(v)));
-    const caption = $('caption'); if (caption && caption.textContent !== s.caption) caption.textContent = s.caption;
-    const cards = $('coach-cards');
+    live('distance',`${Math.ceil(sim.pathLeft(v))} m`); live('eta',fmt(sim.eta(v)));
+    const shortCue = window.NhipCuuViews.briefCue(s);
+    const caption = $('caption'); if (caption && caption.textContent !== shortCue) caption.textContent = shortCue;
+    const sceneVols = s.vols.filter(x => x.role === 'scene' && ['enroute','arrived'].includes(x.status));
+    const alreadyHere = sceneVols.some(x => x.status === 'arrived');
+    live('help-main',alreadyHere ? 'TNV đã tới hiện trường' : sceneVols.length ? `${sceneVols.length} TNV đang tới` : 'Đang kết nối TNV');
+    live('help-sub','ETA giả lập · xem chi tiết');
+    live('help-eta',alreadyHere ? 'Đã tới' : sceneVols.length ? fmt(Math.min(...sceneVols.map(x => sim.eta(x)))) : 'Chờ');
+    $('btn-quick-call').classList.toggle('called',s.metrics.call != null);
+    $('btn-quick-call').title = s.metrics.call != null ? 'Đã mô phỏng gọi 115; không có cuộc gọi thật' : 'Mô phỏng gọi 115 ngay';
+    document.querySelectorAll('[data-ui="sound"]').forEach(el => { el.setAttribute('aria-pressed',String(soundOn)); setMarkup(el,`${icon(soundOn ? 'volume' : 'volume-off')}<span>Tiếng nhịp</span>`); });
+    document.querySelectorAll('[data-ui="voice"]').forEach(el => { el.setAttribute('aria-pressed',String(voiceOn)); });
+    const cards = $('help-sheet').open ? $('help-sheet-body') : null;
     if (cards) cards.innerHTML = s.vols.filter(x => x.role && ['notified','enroute','arrived'].includes(x.status)).sort((a,b) => (a.role === 'aed')-(b.role === 'aed')).map(x => `<div class="vol-card ${x.role === 'aed' ? 'aed' : ''} ${x.status === 'arrived' ? 'arrived' : ''}"><i></i><div><strong>${esc(x.name)}</strong><small>${x.role === 'aed' ? 'Mang AED' : 'Hỗ trợ ép tim'}</small></div><span>${x.status === 'arrived' ? 'Đã tới' : x.status === 'notified' ? 'Đang báo' : fmt(sim.eta(x))}</span></div>`).join('');
   }
   function renderLog() {
@@ -170,7 +164,7 @@
   }
   function render(force = false) {
     const s = sim.state, active = isActive(), arrived = s.vols.filter(v => v.status === 'arrived').length;
-    document.body.classList.toggle('is-paused',s.paused);
+    document.body.classList.toggle('is-paused',s.paused); document.body.classList.toggle('aid-active',active);
     $('clock').textContent = fmt(s.t || 0); $('stat-phase').textContent = s.paused ? 'Đang tạm dừng' : phaseNames[s.phase];
     $('stat-vols').textContent = s.vols.filter(v => !['off','declined','timedout'].includes(v.status)).length;
     $('stat-vol-note').textContent = arrived ? `${arrived} TNV tại điểm diễn tập` : 'Đang trực · dữ liệu giả lập';
@@ -187,7 +181,8 @@
     renderPhone(force); renderLivePhone(); renderLog(); drawMap();
     if (s.phase === 'done') saveReport();
     syncBeat();
-    if (spokenVersion !== s.cueVersion) { spokenVersion = s.cueVersion; speakCurrent(); }
+    const speechKey = `${s.phase}|${s.q1 != null}|${s.cueVersion}`;
+    if (spokenVersion !== speechKey) { spokenVersion = speechKey; speakCurrent(); }
   }
 
   function drawBase() {
@@ -255,15 +250,29 @@
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url),1000); toast('Đã tạo báo cáo CSV có nhãn dữ liệu mô phỏng.');
   }
 
+  function setView(mode) {
+    const app = mode !== 'dispatch'; document.body.classList.toggle('app-mode',app);
+    $('view-app').setAttribute('aria-pressed',String(app)); $('view-dispatch').setAttribute('aria-pressed',String(!app));
+    window.scrollTo({top:0,behavior:'instant'});
+  }
   function showRole(next) { role = next; screenKey = ''; $('screen').scrollTop = 0; render(); }
   $('screen').addEventListener('click',event => {
+    const ui = event.target.closest('[data-ui]');
+    if (ui) {
+      if (ui.dataset.ui === 'voice') $('btn-voice').click();
+      if (ui.dataset.ui === 'sound') $('btn-sound').click();
+      if (ui.dataset.ui === 'helpers') { $('help-sheet').showModal(); renderLivePhone(); }
+      return;
+    }
     const button = event.target.closest('[data-act]'); if (!button || button.disabled) return;
     const action = button.dataset.act;
     if (action === 'reset') return reset();
-    if (action === 'report') { $('reports').scrollIntoView({behavior:'smooth'}); return; }
+    if (action === 'report') { setView('dispatch'); $('reports').scrollIntoView({behavior:'smooth'}); return; }
     if (action === 'accept' || action === 'decline') sim.respond('v1',action === 'accept');
     else if (action === 'toggle') sim.toggleVolunteer('v1');
     else sim.act(action);
+    if ((action === 'q2' || action === 'q2u') && !sim.state.auto) sim.act('send');
+    if (action === 'cpr' && !soundPreferenceSet) { soundOn = true; ensureAudio(); $('btn-sound').setAttribute('aria-pressed',String(soundOn)); $('btn-sound').innerHTML = icon(soundOn ? 'volume' : 'volume-off'); }
     renderScenarios(); render();
   });
   ['bystander','volunteer'].forEach(r => {
@@ -275,12 +284,19 @@
   $('btn-pause').addEventListener('click',() => { if (!isActive()) return; sim.state.paused = !sim.state.paused; if (sim.state.paused) cancelSpeech(); else speakCurrent(); render(); });
   $('sel-speed').addEventListener('change',e => { speed = Number(e.target.value); });
   $('btn-sound').addEventListener('click',() => {
-    soundOn = !soundOn; if (soundOn) ensureAudio(); $('btn-sound').setAttribute('aria-pressed',String(soundOn)); $('btn-sound').innerHTML = icon(soundOn ? 'volume' : 'volume-off'); $('btn-sound').title = soundOn ? 'Tắt tiếng bíp' : 'Bật tiếng bíp'; syncBeat();
+    soundPreferenceSet = true; soundOn = !soundOn; if (soundOn) ensureAudio(); $('btn-sound').setAttribute('aria-pressed',String(soundOn)); $('btn-sound').innerHTML = icon(soundOn ? 'volume' : 'volume-off'); $('btn-sound').title = soundOn ? 'Tắt tiếng bíp' : 'Bật tiếng bíp'; syncBeat(); renderLivePhone();
   });
   $('btn-voice').addEventListener('click',() => {
     pickVoice(); if (!voiceOn && !viVoice) { toast('Máy chưa có giọng đọc tiếng Việt. Hướng dẫn chữ vẫn luôn hiển thị.'); return; }
-    voiceOn = !voiceOn; $('btn-voice').setAttribute('aria-pressed',String(voiceOn)); $('btn-voice').title = voiceOn ? 'Tắt giọng đọc' : 'Bật giọng đọc tiếng Việt'; voiceOn ? speakCurrent() : cancelSpeech();
+    voiceOn = !voiceOn; $('btn-voice').setAttribute('aria-pressed',String(voiceOn)); $('btn-voice').title = voiceOn ? 'Tắt giọng đọc' : 'Bật giọng đọc tiếng Việt'; voiceOn ? speakCurrent() : cancelSpeech(); renderLivePhone();
   });
+  $('view-app').addEventListener('click',() => setView('app'));
+  $('view-dispatch').addEventListener('click',() => setView('dispatch'));
+  document.querySelector('.view-brand').addEventListener('click',e => { e.preventDefault(); setView('app'); });
+  $('btn-quick-call').addEventListener('click',() => { if (sim.state.phase === 'done') reset(); sim.act('call-now'); toast('Đã mô phỏng gọi 115. Không thực hiện cuộc gọi thật.'); renderScenarios(); render(); });
+  $('btn-close-sheet').addEventListener('click',() => $('help-sheet').close());
+  $('btn-end-sheet').addEventListener('click',() => { $('help-sheet').close(); sim.act('end'); renderScenarios(); render(); });
+  $('help-sheet').addEventListener('click',e => { if (e.target !== $('help-sheet')) return; const r = $('help-sheet').getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) $('help-sheet').close(); });
   $('scenario-options').addEventListener('click',e => { const option = e.target.closest('[data-scenario]'); if (option && !option.disabled) reset(option.dataset.scenario); });
   $('scenario-options').addEventListener('keydown',e => {
     if (isActive() || !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key)) return;
@@ -298,7 +314,7 @@
   document.addEventListener('visibilitychange',() => { if (document.hidden) { stopBeat(); cancelSpeech(); } else syncBeat(); });
   window.addEventListener('pagehide',() => { stopBeat(); cancelSpeech(); });
 
-  fillIcons(); drawBase(); renderScenarios(); renderReports(); render();
+  fillIcons(); setView(new URLSearchParams(location.search).get('view') === 'dispatch' ? 'dispatch' : 'app'); drawBase(); renderScenarios(); renderReports(); render();
   // Retain the previous prototype's illustration URLs; these snapshots never enter history.
   const shots = { 'shot-confirm':[4,'bystander'], 'shot-coach':[50,'bystander'], 'shot-volunteer':[10,'volunteer'], 'shot-enroute':[40,'volunteer'], 'shot-done':[600,'bystander'] };
   const shot = shots[location.hash.slice(1)];

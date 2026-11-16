@@ -64,3 +64,18 @@ test('fresh simulation resets resources and every timestamp, and toggles persist
   assert.equal(fresh.state.vols.find(v => v.id === 'v1').role,null);
   assert.equal(fresh.toggleVolunteer('v1'),false);
 });
+test('115 is available from home, but CPR stays locked until assessment is complete', () => {
+  const sim = createSimulation(); assert.equal(sim.act('call-now'),true);
+  assert.equal(sim.state.phase,'confirm'); assert.equal(sim.state.metrics.call,0);
+  assert.equal(sim.act('cpr'),false); assert.equal(sim.state.metrics.alarm,null);
+  sim.act('q1'); sim.act('q2'); sim.act('send');
+  assert.equal(sim.state.phase,'coach'); assert.equal(sim.act('cpr'),true);
+  assert.equal(sim.state.metrics.call,0);
+  sim.act('call-now'); assert.equal(sim.state.log.filter(e => e.text.startsWith('Gọi 115')).length,1);
+});
+test('calling 115 during assessment preserves answered questions and does not dispatch prematurely', () => {
+  const sim = createSimulation(); sim.act('sos'); sim.tick(2); sim.act('q1u'); sim.act('call-now');
+  assert.equal(sim.state.q1,'unsure'); assert.equal(sim.state.q2,null);
+  assert.equal(sim.state.metrics.call,2); assert.equal(sim.state.metrics.alarm,null);
+  sim.act('q2u'); sim.act('send'); assert.equal(sim.state.phase,'coach');
+});

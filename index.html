@@ -11,11 +11,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="focus-ui.css">
   <script defer src="simulation.js"></script>
+  <script defer src="illustrations.js"></script>
+  <script defer src="focus-views.js"></script>
   <script defer src="app.js"></script>
 </head>
-<body>
+<body class="app-mode">
 <a class="skip-link" href="#main">Đến nội dung chính</a>
+<header class="view-header">
+  <a class="view-brand" href="#" aria-label="Nhịp Cứu — về màn hình hỗ trợ"><img src="favicon.svg" width="32" height="32" alt=""><span>Nhịp Cứu<small>NGUYÊN MẪU DIỄN TẬP</small></span></a>
+  <div class="view-switch" role="group" aria-label="Chế độ xem"><button type="button" id="view-app" aria-pressed="true">Ứng dụng</button><button type="button" id="view-dispatch" aria-pressed="false">Điều phối</button></div>
+</header>
 <aside class="sidebar" aria-label="Điều hướng chính">
   <a class="brand" href="#overview" aria-label="Nhịp Cứu — Tổng quan">
     <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M4 17h7l3-8 5 15 3-10 2 3h4"/></svg></span>
@@ -60,8 +67,8 @@
       <section class="app-column" aria-label="Trải nghiệm ứng dụng mô phỏng">
         <div class="app-heading"><h2>Trải nghiệm ứng dụng</h2><span>2 vai trò</span></div>
         <div class="role-tabs" role="tablist" aria-label="Vai trò trong diễn tập"><button type="button" role="tab" id="tab-bystander" aria-selected="true" aria-controls="phone-panel"><span data-icon="eye"></span>Người chứng kiến</button><button type="button" role="tab" id="tab-volunteer" aria-selected="false" tabindex="-1" aria-controls="phone-panel"><span data-icon="heart"></span>Tình nguyện viên</button></div>
-        <div class="phone" id="phone-panel" role="tabpanel" aria-labelledby="tab-bystander"><div class="phone-status"><span>9:41</span><div class="phone-island"></div><span aria-hidden="true">▮▮▮ <span class="battery"></span></span></div><div class="app-brand"><span class="app-brand-name"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h7l3-8 5 15 3-10 2 3h4"/></svg>Nhịp Cứu</span><span>MÔ PHỎNG</span></div><div id="screen" class="screen"></div><div class="phone-home" aria-hidden="true"></div></div>
-        <p class="phone-note"><span data-icon="info"></span>Tình huống người lớn. Không dùng cho cấp cứu thật.</p>
+        <div class="phone" id="phone-panel" role="tabpanel" aria-labelledby="tab-bystander"><div class="phone-status"><span>9:41</span><div class="phone-island"></div><span aria-hidden="true">▮▮▮ <span class="battery"></span></span></div><div class="app-brand"><span class="app-brand-name"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17h7l3-8 5 15 3-10 2 3h4"/></svg>Nhịp Cứu</span><div class="app-header-actions"><span class="mock-label">MÔ PHỎNG</span><button type="button" class="quick-call" id="btn-quick-call" aria-label="Mô phỏng gọi 115 ngay"><span data-icon="phone"></span>115</button></div></div><div id="screen" class="screen"></div><div class="phone-home" aria-hidden="true"></div></div>
+        <p class="phone-note"><span data-icon="info"></span>Diễn tập người lớn · Không thực hiện cuộc gọi hay gửi cảnh báo thật.</p>
       </section>
     </div>
     <section class="scenarios-section" id="scenarios"><div class="section-heading"><div><p class="eyebrow">KIỂM CHỨNG TỪNG TÌNH HUỐNG</p><h2>Một mạng lưới. Nhiều thử thách.</h2></div><span class="section-meta" id="scenario-help">Chọn kịch bản, rồi bấm “Chạy diễn tập”.</span></div><div class="scenario-grid" id="scenario-options" role="radiogroup" aria-label="Chọn kịch bản diễn tập"></div><div class="scenario-detail" id="scenario-detail"></div></section>
@@ -70,6 +77,7 @@
   </main>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
+<dialog class="help-sheet" id="help-sheet" aria-labelledby="help-sheet-title"><div class="sheet-grip" aria-hidden="true"></div><div class="sheet-heading"><h2 id="help-sheet-title">Trợ giúp đang tới</h2><button type="button" class="sheet-close" id="btn-close-sheet" aria-label="Đóng danh sách trợ giúp"><span data-icon="close"></span></button></div><div id="help-sheet-body"></div><p class="sheet-note">Vị trí và ETA giả lập. Nhịp dẫn không đo lực ép hoặc chất lượng hồi sức.</p><button type="button" id="btn-end-sheet" class="aid-button quiet">Kết thúc lượt diễn tập</button></dialog>
 <noscript><p class="noscript">Bật JavaScript để chạy mô phỏng Nhịp Cứu. Khi cần cấp cứu thật, gọi 115.</p></noscript>
 </body>
 </html>

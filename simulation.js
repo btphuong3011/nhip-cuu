@@ -113,9 +113,12 @@
       } else if ((action === 'q1' || action === 'q1u') && state.phase === 'confirm') state.q1 = action === 'q1' ? 'yes' : 'unsure';
       else if ((action === 'q2' || action === 'q2u') && state.phase === 'confirm') state.q2 = action === 'q2' ? 'yes' : 'unsure';
       else if (action === 'send' && state.phase === 'confirm' && state.q1 && state.q2) {
-        state.phase = 'call'; state.metrics.alarm = state.t; log(`Gửi vị trí giả lập: ${VICTIM.label}.`,'alarm'); dispatch();
-      } else if (action === 'call' && state.phase === 'call') {
-        state.metrics.call = state.t; state.phase = 'coach'; log('Gọi 115 và bật loa ngoài (mô phỏng, không thực hiện cuộc gọi).');
+        state.phase = state.metrics.call != null ? 'coach' : 'call'; state.metrics.alarm = state.t; log(`Gửi vị trí giả lập: ${VICTIM.label}.`,'alarm'); dispatch();
+      } else if ((action === 'call' && state.phase === 'call') || action === 'call-now') {
+        // The 115 action stays available before assessment; it never unlocks CPR by itself.
+        if (state.phase === 'idle') { state.t = 0; state.phase = 'confirm'; }
+        if (state.metrics.call == null) { state.metrics.call = state.t; log('Gọi 115 và bật loa ngoài (mô phỏng, không thực hiện cuộc gọi).'); }
+        if (state.phase === 'call') state.phase = 'coach';
       } else if (action === 'cpr' && state.phase === 'coach' && state.cprAt == null) {
         state.cprAt = state.t; state.lastCue = state.t; state.lastSwap = state.t;
         if (state.metrics.compress == null) state.metrics.compress = state.t;
